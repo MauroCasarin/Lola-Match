@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lola Match-3</title>
+    <title>Lola Match</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/tone@14.7.58/build/Tone.js"></script>
     <style>
         /* Añadir fondos degradados por nivel */
         body {
@@ -16,6 +17,7 @@
             padding: 1rem; /* Añadir algo de relleno */
             font-family: sans-serif; /* Fuente por defecto */
             transition: background 0.5s ease; /* Transición suave para el cambio de fondo */
+            position: relative; /* Necesario para posicionar el modal */
         }
 
         /* Estilos para el contenedor del tablero y controles */
@@ -27,6 +29,8 @@
             border-radius: 8px;
             padding: 15px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* Sombra más pronunciada */
+            position: relative; /* Para que el tablero no se mueva con el modal */
+            z-index: 1; /* Asegurar que esté sobre el fondo pero debajo del modal */
         }
 
         /* Estilos personalizados para el tablero de juego */
@@ -131,6 +135,41 @@
              background-color: #d69e2e; /* Amarillo más oscuro al pasar el ratón */
          }
 
+         /* Estilos para el cartel emergente (modal) */
+         .modal-overlay {
+             position: fixed;
+             top: 0;
+             left: 0;
+             width: 100%;
+             height: 100%;
+             background-color: rgba(0, 0, 0, 0.7);
+             display: flex;
+             justify-content: center;
+             align-items: center;
+             z-index: 10; /* Asegurar que esté sobre todo */
+         }
+
+         .modal-content {
+             background-color: #fff;
+             padding: 30px;
+             border-radius: 8px;
+             text-align: center;
+             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+         }
+
+         /* Estilos para el área de mensajes */
+         #message-area {
+             margin-top: 20px;
+             padding: 10px;
+             background-color: rgba(255, 255, 255, 0.8);
+             border-radius: 4px;
+             min-height: 1.5em; /* Espacio mínimo para el mensaje */
+             text-align: center;
+             color: #333;
+             font-weight: bold;
+             min-width: 200px; /* Ancho mínimo */
+         }
+
 
         /* Ajustes responsivos */
         @media (max-width: 600px) {
@@ -149,7 +188,7 @@
         <div id="score-display" class="text-2xl font-semibold text-gray-700">Puntuación: 0</div>
     </div>
 
-    <div id="game-container">
+    <div id="message-area"></div> <div id="game-container">
         <div id="game-board">
             </div>
         <div class="flex justify-center mt-4">
@@ -158,21 +197,45 @@
         </div>
     </div>
 
+    <div id="level-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 id="modal-title" class="text-3xl font-bold mb-4"></h2>
+            <p id="modal-message" class="text-lg"></p>
+            <button id="modal-close-button" class="mt-6 px-6 py-2 bg-blue-500 text-white font-bold rounded hover:bg-blue-600">Cerrar</button>
+        </div>
+    </div>
+
 
     <script>
         // Configuración de niveles y tamaños de tablero
         const levelSizes = {
             1: 3, // Nivel 1: Tablero 3x3
-            2: 5, // Nivel 2: Tablero 5x5
-            3: 8, // Nivel 3: Tablero 8x8
-			4: 10, // Nivel 3: Tablero 10x10
+            2: 4, // Nivel 2: Tablero 4x4
+            3: 5, // Nivel 3: Tablero 5x5
+            4: 6, // Nivel 4: Tablero 6x6
+            5: 7, // Nivel 5: Tablero 7x7
+            6: 8, // Nivel 6: Tablero 8x8
+            7: 9, // Nivel 7: Tablero 9x9
+            8: 10, // Nivel 8: Tablero 10x10
+            9: 11, // Nivel 9: Tablero 11x11
+            10: 12 // Nivel 10: Tablero 12x12 (Nivel final)
         };
+
+        const maxLevel = Object.keys(levelSizes).length; // El nivel máximo es el número de entradas en levelSizes
+
 
          // Colores de fondo degradado por nivel (verdes)
          const levelBackgrounds = {
              1: 'linear-gradient(to bottom right, #10b981, #059669)', // Verde oscuro
              2: 'linear-gradient(to bottom right, #34d399, #065f46)', // Verde medio
-             3: 'linear-gradient(to bottom right, #6ee7b7, #047857)'  // Verde claro
+             3: 'linear-gradient(to bottom right, #6ee7b7, #047857)',  // Verde claro
+             4: 'linear-gradient(to bottom right, #99f6e4, #14b8a6)', // Verde muy claro
+             5: 'linear-gradient(to bottom right, #a7f3d0, #059669)', // Verde pastel
+             6: 'linear-gradient(to bottom right, #d1fae5, #34d399)', // Verde muy pastel
+             7: 'linear-gradient(to bottom right, #6ee7b7, #065f46)', // Repetir o añadir más
+             8: 'linear-gradient(to bottom right, #34d399, #10b981)', // Repetir o añadir más
+             9: 'linear-gradient(to bottom right, #059669, #047857)', // Repetir o añadir más
+             10: 'linear-gradient(to bottom right, #10b981, #059669)' // Repetir o añadir más
          };
 
 
@@ -197,9 +260,47 @@
         let isSwapping = false; // Indicador para evitar múltiples intercambios a la vez
         let hintTimeout = null; // Para controlar el tiempo de la animación de pista
 
-        // Variables para detectar doble clic en el botón de pista
-        let lastHintClickTime = 0;
-        const doubleClickThreshold = 400; // Tiempo en ms para considerar doble clic
+        // Variables para detectar clics consecutivos en el botón de pista
+        let hintClickCount = 0;
+        let hintClickTimer = null; // Para resetear el contador si hay pausa entre clics
+        const consecutiveClickThreshold = 400; // Tiempo en ms para considerar clics consecutivos
+        const maxHintRegenerateAttempts = 50; // Máximo de intentos para regenerar el tablero si no hay pista
+
+        let gameActive = true; // Indicador si el juego está activo
+
+
+        // Sonidos con Tone.js
+        const clickSynth = new Tone.Synth().toDestination();
+        const errorSynth = new Tone.Synth({
+            oscillator: { type: 'triangle' },
+            envelope: { attack: 0.001, decay: 0.1, sustain: 0.01, release: 0.2 }
+        }).toDestination();
+        // Ajustar volumen para que se escuche más
+        errorSynth.volume.value = 6; // +6 dB
+
+        // Sonido de coincidencia (más vibrante)
+        const matchSynth = new Tone.PluckSynth().toDestination();
+        // Ajustar volumen para que se escuche más
+        matchSynth.volume.value = 6; // +6 dB
+
+        // Sonido de subir de nivel (celebración)
+         const levelUpSynth = new Tone.Synth({
+             oscillator: { type: 'square' },
+             envelope: { attack: 0.001, decay: 0.2, sustain: 0.05, release: 0.8 }
+         }).toDestination();
+         const levelUpMelody = ['C5', 'E5', 'G5', 'C6']; // Notas para la melodía de festejo
+         // La secuencia se define, pero no se inicia automáticamente aquí
+         const levelUpSequence = new Tone.Sequence((time, note) => {
+             levelUpSynth.triggerAttackRelease(note, '8n', time);
+         }, levelUpMelody, '4n');
+
+         // Sonido para clic en pista
+         const hintClickSynth = new Tone.Synth({
+             oscillator: { type: 'sawtooth' },
+             envelope: { attack: 0.001, decay: 0.05, sustain: 0.01, release: 0.1 }
+         }).toDestination();
+
+         Tone.Transport.start(); // Iniciar el transporte de Tone.js
 
 
         const gameBoard = document.getElementById('game-board');
@@ -207,6 +308,40 @@
         const levelDisplay = document.getElementById('level-display'); // Elemento para mostrar el nivel
         const restartButton = document.getElementById('restart-button');
         const hintButton = document.getElementById('hint-button'); // Botón de pista
+        const messageArea = document.getElementById('message-area'); // Área de mensajes
+
+        // Elementos del modal
+        const levelModal = document.getElementById('level-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCloseButton = document.getElementById('modal-close-button');
+
+
+        // Función para mostrar un mensaje en el área de mensajes
+        function showMessage(message, duration = 3000) {
+             messageArea.textContent = message;
+             messageArea.style.opacity = 1; // Hacer visible
+             // Opcional: Desvanecer el mensaje después de un tiempo
+             setTimeout(() => {
+                 messageArea.style.opacity = 0;
+             }, duration);
+        }
+
+
+        // Función para mostrar el modal
+        function showModal(title, message) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            levelModal.classList.remove('hidden');
+        }
+
+        // Función para ocultar el modal
+        function hideModal() {
+            levelModal.classList.add('hidden');
+        }
+
+        // Event listener para cerrar el modal
+        modalCloseButton.addEventListener('click', hideModal);
 
 
         // Función para actualizar la visualización del nivel
@@ -239,40 +374,59 @@
             board = [];
             gameBoard.innerHTML = ''; // Limpiar el tablero anterior
             // La puntuación no se reinicia al cambiar de nivel, solo al reiniciar el juego completo
-            // score = 0;
+            // score = 0; // La puntuación solo se reinicia en el reinicio completo
             updateScoreDisplay();
             updateLevelDisplay(); // Actualizar la visualización del nivel
             selectedPiece = null;
             isSwapping = false;
+            messageArea.textContent = ''; // Limpiar mensajes al iniciar nivel
+            gameActive = true; // Asegurarse de que el juego esté activo al inicializar
 
-            // Generar tablero sin coincidencias iniciales
+            // Generar tablero sin coincidencias iniciales y con al menos una pista
             generateBoardWithoutMatches();
 
             // Después de inicializar, verificar y eliminar cualquier coincidencia inicial (redundante con la generación, pero seguro)
             setTimeout(handleMatches, 500); // Añadir un ligero retraso
         }
 
-         // Función para generar un tablero sin coincidencias iniciales
+         // Función para generar un tablero sin coincidencias iniciales y con al menos una pista
          function generateBoardWithoutMatches() {
-             for (let r = 0; r < boardSize; r++) {
-                 // Asegurarse de que la fila exista en el array board
-                 if (!board[r]) {
-                     board[r] = [];
-                 }
-                 for (let c = 0; c < boardSize; c++) {
-                     let randomType;
-                     do {
-                         randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
-                         // Asignar temporalmente para verificar coincidencias
-                         board[r][c] = randomType;
-                     } while (hasImmediateMatch(r, c)); // Repetir si hay coincidencia inmediata
+             let attempts = 0;
+             let boardGenerated = false;
 
-                     // Crear y añadir el elemento de la pieza al DOM
-                     const pieceElement = createPiece(r, c, randomType);
-                     gameBoard.appendChild(pieceElement);
+             while (!boardGenerated && attempts < maxHintRegenerateAttempts) {
+                 board = []; // Resetear el tablero
+                 gameBoard.innerHTML = ''; // Limpiar el DOM
+                 for (let r = 0; r < boardSize; r++) {
+                     board[r] = [];
+                     for (let c = 0; c < boardSize; c++) {
+                         let randomType;
+                         do {
+                             randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
+                             board[r][c] = randomType;
+                         } while (hasImmediateMatch(r, c));
+
+                         const pieceElement = createPiece(r, c, randomType);
+                         gameBoard.appendChild(pieceElement);
+                     }
+                 }
+
+                 // Verificar si el tablero generado tiene al menos una pista
+                 if (findHint() !== null) {
+                     boardGenerated = true; // Se encontró una pista, salir del bucle
+                 } else {
+                     attempts++; // No se encontró pista, intentar de nuevo
                  }
              }
+
+             if (!boardGenerated) {
+                 // Si después de varios intentos no se encuentra una pista, mostrar un mensaje
+                 showMessage("No se pudo generar un tablero con movimientos posibles. Intenta reiniciar.");
+                 // Opcional: Deshabilitar el juego o mostrar un mensaje de error más grave
+                 gameActive = false;
+             }
          }
+
 
          // Función auxiliar para verificar si una pieza en (r, c) crea una coincidencia inmediata
          function hasImmediateMatch(r, c) {
@@ -286,7 +440,6 @@
                  let horizontalMatch = true;
                  for (let i = 1; i < minMatchSize; i++) {
                      const checkC = c - i;
-                     // Explicitly check column boundary before accessing board
                      if (checkC < 0 || board[r][checkC] !== pieceType) {
                          horizontalMatch = false;
                          break;
@@ -299,7 +452,6 @@
                   let horizontalMatch = true;
                   for (let i = 1; i < minMatchSize; i++) {
                       const checkC = c + i;
-                       // Explicitly check column boundary before accessing board
                       if (checkC >= boardSize || board[r][checkC] !== pieceType) {
                           horizontalMatch = false;
                           break;
@@ -314,7 +466,6 @@
                  let verticalMatch = true;
                  for (let i = 1; i < minMatchSize; i++) {
                      const checkR = r - i;
-                     // Explicitly check row boundary before accessing board
                      if (checkR < 0 || board[checkR][c] !== pieceType) {
                          verticalMatch = false;
                          break;
@@ -327,7 +478,6 @@
                   let verticalMatch = true;
                   for (let i = 1; i < minMatchSize; i++) {
                       const checkR = r + i;
-                      // Check if board[checkR] is defined before accessing [c]
                       if (checkR >= boardSize || board[checkR] === undefined || board[checkR][c] !== pieceType) {
                           verticalMatch = false;
                           break;
@@ -343,11 +493,15 @@
         // Función para actualizar la visualización de la puntuación
         function updateScoreDisplay() {
             scoreDisplay.textContent = `Puntuación: ${score}`;
+             // Verificar si la puntuación llega a 0 o menos
+            if (score <= 0 && gameActive) {
+                gameOver();
+            }
         }
 
         // Función para manejar el clic en una pieza
         function handlePieceClick(event) {
-            if (isSwapping) return; // Evitar clics durante la animación de intercambio
+            if (!gameActive || isSwapping) return; // No permitir clics si el juego no está activo o está intercambiando
 
             // Detener cualquier animación de pista activa
             stopHintAnimation();
@@ -358,10 +512,12 @@
                 // Primera pieza seleccionada
                 selectedPiece = clickedPiece;
                 selectedPiece.classList.add('selected');
+                clickSynth.triggerAttackRelease('C4', '8n'); // Sonido de clic al seleccionar
             } else if (selectedPiece === clickedPiece) {
                 // Deseleccionar la misma pieza
                 selectedPiece.classList.remove('selected');
                 selectedPiece = null;
+                 clickSynth.triggerAttackRelease('C4', '8n'); // Sonido de clic al deseleccionar
             } else {
                 // Segunda pieza seleccionada, intentar un intercambio
                 const row1 = parseInt(selectedPiece.dataset.row);
@@ -379,6 +535,8 @@
                     selectedPiece.classList.remove('selected');
                     selectedPiece = clickedPiece;
                     selectedPiece.classList.add('selected');
+                    errorSynth.triggerAttackRelease('C3', '16n'); // Sonido de error si no son adyacentes
+                    showMessage("Las piezas no son adyacentes.");
                 }
             }
         }
@@ -405,6 +563,8 @@
             const matches = findMatches();
 
             if (matches.length > 0) {
+                matchSynth.triggerAttackRelease('E4', '8n'); // Sonido de coincidencia
+                showMessage(`¡Coincidencia! Ganaste ${matches.length * 5} puntos.`);
                 // Coincidencias encontradas, manejarlas
                 await new Promise(resolve => setTimeout(resolve, 300)); // Pequeño retraso para el intercambio visual
                 handleMatches(); // Esto procesará las coincidencias, puntuará, caerá y rellenará
@@ -412,18 +572,22 @@
                 // No hay coincidencias, restar puntos
                 score -= 5;
                 if (score < 0) score = 0; // Evitar puntuación negativa
-                updateScoreDisplay();
+                updateScoreDisplay(); // Esto llamará a gameOver si score <= 0
+                errorSynth.triggerAttackRelease('C3', '16n'); // Sonido de error si no hay match
+                showMessage("No hay coincidencia. Pierdes 5 puntos.");
+
 
                 // Verificar si la puntuación ha caído significativamente para reiniciar el nivel
                 if (score < scoreBeforeMove - 20) {
                     // Volver al nivel anterior si no es el nivel 1
                     if (currentLevel > 1) {
                         currentLevel--;
-                        alert(`Tu puntuación ha bajado mucho. ¡Vuelves al Nivel ${currentLevel}!`);
+                        showModal("¡Puntuación Baja!", `Tu puntuación ha bajado mucho. ¡Vuelves al Nivel ${currentLevel}!`);
                     } else {
                          // Si ya está en el Nivel 1, solo mostrar el mensaje
-                         alert("Tu puntuación ha bajado mucho.");
+                         showModal("¡Puntuación Baja!", "Tu puntuación ha bajado mucho.");
                     }
+                    levelUpSynth.triggerAttackRelease('A3', '8n'); // Sonido de "retroceso" de nivel
                     initializeBoard(); // Reiniciar el tablero con el nuevo tamaño/nivel
                     isSwapping = false; // Asegurarse de resetear el flag antes de salir
                     return; // Salir de la función después de reiniciar el nivel
@@ -553,15 +717,22 @@
                 // Añadir puntuación basada en el número de piezas coincidentes
                 // Cada coincidencia son 5 puntos por pieza
                 score += matches.length * 5;
-                updateScoreDisplay();
+                updateScoreDisplay(); // Esto llamará a gameOver si score <= 0
 
                 // Verificar si se alcanza el umbral para el siguiente nivel (cada 50 puntos)
                 const nextLevelThreshold = currentLevel * pointsPerLevel;
-                if (currentLevel < Object.keys(levelSizes).length && score >= nextLevelThreshold) {
+                if (currentLevel < maxLevel && score >= nextLevelThreshold) {
+                    levelUpSequence.start(); // Iniciar la secuencia de festejo
                     currentLevel++;
-                    alert(`¡Felicidades! Has alcanzado el Nivel ${currentLevel}. El tablero se hará más grande.`);
+                    showModal("¡Nivel Completado!", `¡Felicidades! Has alcanzado el Nivel ${currentLevel}. El tablero se hará más grande.`);
                     initializeBoard(); // Reiniciar el tablero con el nuevo tamaño
                     return; // Salir del bucle while para evitar procesar más coincidencias en el tablero anterior
+                } else if (currentLevel === maxLevel && score >= nextLevelThreshold) {
+                     // El jugador ha ganado al alcanzar el nivel máximo y superar el umbral de puntos
+                     levelUpSequence.start(); // Sonido de festejo para ganar
+                     showModal("¡Felicidades!", "¡Has completado todos los niveles de Lola Match! ¡Ganaste!");
+                     gameActive = false; // Desactivar el juego
+                     return; // Salir del bucle
                 }
 
 
@@ -858,6 +1029,13 @@
              }
         }
 
+        // Función para manejar el fin del juego (perder todos los puntos)
+        function gameOver() {
+            gameActive = false; // Desactivar el juego
+            showModal("¡GAME OVER!", "PERDISTE -- GAME OVER-- VOLVE A INTENTARLO");
+            // Opcional: Deshabilitar el tablero o mostrar un botón de reiniciar en el modal
+        }
+
 
         // Listener de eventos para el botón de reiniciar
         restartButton.addEventListener('click', () => {
@@ -868,56 +1046,92 @@
 
         // Listener de eventos para el botón de pista
         hintButton.addEventListener('click', () => {
-            if (isSwapping) return; // No dar pista durante un intercambio
+            if (!gameActive || isSwapping) return; // No dar pista si el juego no está activo o está intercambiando
 
-            const currentTime = new Date().getTime();
-            // Verificar si es un doble clic
-            if (currentTime - lastHintClickTime < doubleClickThreshold) {
-                // Es un doble clic
+            hintClickCount++; // Incrementar el contador de clics
+
+            // Limpiar el timer anterior si existe
+            if (hintClickTimer) {
+                clearTimeout(hintClickTimer);
+            }
+
+            // Establecer un timer para resetear el contador si no hay otro clic pronto
+            hintClickTimer = setTimeout(() => {
+                hintClickCount = 0; // Resetear el contador si pasa el tiempo de clics consecutivos
+            }, consecutiveClickThreshold);
+
+
+            // Verificar si es el segundo clic consecutivo
+            if (hintClickCount === 2) {
+                 hintClickCount = 0; // Resetear el contador después de procesar el doble clic
+                 clearTimeout(hintClickTimer); // Limpiar el timer
+
                 if (currentLevel > 1) {
                     currentLevel--; // Volver al nivel anterior
-                    alert(`¡Doble clic en Pista! Vuelves al Nivel ${currentLevel}.`);
+                    showModal("¡Volviendo de Nivel!", `Has usado dos clics en Pista. Vuelves al Nivel ${currentLevel}.`);
+                    levelUpSynth.triggerAttackRelease('A3', '8n'); // Sonido de "retroceso" de nivel
                     initializeBoard(); // Reiniciar el tablero con el nuevo tamaño/nivel
                 } else {
-                    // Si ya está en el Nivel 1, solo mostrar un mensaje o hacer algo diferente
-                    alert("Ya estás en el Nivel 1.");
+                    // Si ya está en el Nivel 1, solo mostrar un mensaje
+                    showMessage("Ya estás en el Nivel 1.");
                 }
-                 lastHintClickTime = 0; // Resetear el tiempo para evitar triple clics, etc.
                  stopHintAnimation(); // Detener cualquier animación de pista
                  return; // Salir de la función para no procesar el clic como una pista normal
             }
 
-            // Si no es un doble clic, procesar como un clic normal de pista
-            lastHintClickTime = currentTime; // Actualizar el tiempo del último clic
+
+            // Si es el primer clic o más de dos clics, procesar como un clic normal de pista
+            hintClickSynth.triggerAttackRelease('F4', '16n'); // Sonido para el clic en pista
 
             const scoreBeforeHint = score;
 
-            const hint = findHint();
+            let hint = findHint();
             if (hint) {
                 applyHintAnimation(hint.row, hint.col);
                 // Descontar puntos por usar la pista
                 score -= 10;
                 if (score < 0) score = 0; // Evitar puntuación negativa
-                updateScoreDisplay();
+                updateScoreDisplay(); // Esto llamará a gameOver si score <= 0
+                showMessage("Pista usada. Pierdes 10 puntos.");
+
 
                 // Verificar si la puntuación ha caído significativamente para reiniciar el nivel después de la pista
                 if (score < scoreBeforeHint - 20) {
                     // Volver al nivel anterior si no es el nivel 1
                     if (currentLevel > 1) {
                         currentLevel--;
-                        alert(`Usar pistas te ha costado mucho. ¡Vuelves al Nivel ${currentLevel}!`);
+                         showModal("¡Puntuación Baja!", `Usar pistas te ha costado mucho. ¡Vuelves al Nivel ${currentLevel}!`);
                     } else {
                          // Si ya está en el Nivel 1, solo mostrar el mensaje
-                         alert("Usar pistas te ha costado mucho.");
+                         showModal("¡Puntuación Baja!", "Usar pistas te ha costado mucho.");
                     }
+                    levelUpSynth.triggerAttackRelease('A3', '8n'); // Sonido de "retroceso" de nivel
                     initializeBoard(); // Reiniciar el tablero con el nuevo tamaño/nivel
                     return; // Salir de la función después de reiniciar el nivel
                 }
 
             } else {
-                // Opcional: Mostrar un mensaje si no hay movimientos posibles
-                console.log("No hay movimientos posibles en este momento.");
-                // alert("No hay movimientos posibles en este momento."); // Podría ser molesto
+                // Si no se encontró una pista, intentar regenerar el tablero
+                 let attempts = 0;
+                 let hintFoundAfterRegen = false;
+                 while(attempts < maxHintRegenerateAttempts) {
+                     showMessage("No hay movimientos posibles. Regenerando tablero...");
+                     initializeBoard(); // Regenerar el tablero
+                     hint = findHint(); // Buscar pista en el nuevo tablero
+                     if (hint) {
+                         applyHintAnimation(hint.row, hint.col);
+                         showMessage("¡Nueva pista encontrada!");
+                         hintFoundAfterRegen = true;
+                         break; // Salir del bucle de regeneración
+                     }
+                     attempts++;
+                 }
+
+                 if (!hintFoundAfterRegen) {
+                     showMessage("No se pudo encontrar una pista después de varios intentos de regeneración.");
+                     // Opcional: Deshabilitar el juego si no hay movimientos posibles incluso después de regenerar
+                     gameActive = false;
+                 }
             }
         });
 
