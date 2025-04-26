@@ -6,9 +6,8 @@
     <title>Lola Match-3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Añadir un fondo degradado al cuerpo (colores más oscuros) */
+        /* Añadir fondos degradados por nivel */
         body {
-            background: linear-gradient(to bottom right, #10b981, #059669); /* Degradado más oscuro */
             min-height: 100vh; /* Asegurar que el degradado cubra toda la altura de la ventana */
             display: flex; /* Usar flexbox para centrar el contenido */
             flex-direction: column;
@@ -16,6 +15,18 @@
             justify-content: center;
             padding: 1rem; /* Añadir algo de relleno */
             font-family: sans-serif; /* Fuente por defecto */
+            transition: background 0.5s ease; /* Transición suave para el cambio de fondo */
+        }
+
+        /* Estilos para el contenedor del tablero y controles */
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.3); /* Fondo del contenedor más oscuro y semi-transparente */
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* Sombra más pronunciada */
         }
 
         /* Estilos personalizados para el tablero de juego */
@@ -23,11 +34,10 @@
             display: grid;
             /* Las columnas y filas de la cuadrícula se establecerán con JavaScript */
             gap: 2px; /* Pequeño espacio entre piezas */
-            background-color: rgba(0, 0, 0, 0.3); /* Fondo del tablero más oscuro y semi-transparente */
-            border-radius: 8px; /* Bordes redondeados para el tablero */
-            padding: 5px; /* Relleno alrededor del tablero */
-            margin: 20px auto; /* Centrar el tablero y añadir margen */
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* Sombra más pronunciada */
+            background-color: rgba(0, 0, 0, 0.1); /* Fondo del tablero ligeramente más claro */
+            border-radius: 4px; /* Bordes redondeados para el tablero */
+            padding: 3px; /* Relleno alrededor del tablero */
+            margin: 10px auto; /* Centrar el tablero y añadir margen */
             width: 100%; /* Hacer el tablero responsivo */
             max-width: 500px; /* Ancho máximo para pantallas más grandes */
             aspect-ratio: 1 / 1; /* Mantener una relación de aspecto cuadrada */
@@ -75,6 +85,49 @@
             }
         }
 
+        /* CSS para la animación de pista (rotación 360) */
+        .hint-rotate {
+            animation: rotate360 1s infinite linear; /* Animación de rotación continua */
+        }
+
+        @keyframes rotate360 {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+
+        /* Estilos para los botones de control */
+        .control-button {
+            margin: 5px;
+            padding: 10px 20px;
+            background-color: #green-500;
+            color: white;
+            font-weight: bold;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .control-button:hover {
+            background-color: #green-600;
+        }
+
+         #hint-button {
+             background-color: #f6e05e; /* Color amarillo para la pista */
+             color: #333;
+         }
+
+         #hint-button:hover {
+             background-color: #d69e2e; /* Amarillo más oscuro al pasar el ratón */
+         }
+
 
         /* Ajustes responsivos */
         @media (max-width: 600px) {
@@ -88,20 +141,43 @@
 
     <h1 class="text-4xl font-bold mb-6 text-blue-600">Lola Match-3</h1>
 
-    <div class="w-full flex justify-center mb-4">
+    <div class="w-full flex justify-center mb-4 space-x-8">
+        <div id="level-display" class="text-2xl font-semibold text-gray-700">Nivel: 1</div>
         <div id="score-display" class="text-2xl font-semibold text-gray-700">Puntuación: 0</div>
     </div>
 
-
-    <div id="game-board" class="w-full max-w-lg">
+    <div id="game-container">
+        <div id="game-board">
+            </div>
+        <div class="flex justify-center mt-4">
+             <button id="restart-button" class="control-button">Reiniciar Juego</button>
+             <button id="hint-button" class="control-button">Pista</button>
         </div>
+    </div>
 
-    <button id="restart-button" class="mt-6 px-6 py-3 bg-green-500 text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition duration-300">
-        Reiniciar Juego
-    </button>
 
     <script>
-        const boardSize = 8; // Tablero de 8x8
+        // Configuración de niveles y tamaños de tablero
+        const levelSizes = {
+            1: 3, // Nivel 1: Tablero 3x3
+            2: 5, // Nivel 2: Tablero 5x5
+            3: 8  // Nivel 3: Tablero 8x8
+        };
+
+         // Colores de fondo degradado por nivel (verdes)
+         const levelBackgrounds = {
+             1: 'linear-gradient(to bottom right, #10b981, #059669)', // Verde oscuro
+             2: 'linear-gradient(to bottom right, #34d399, #065f46)', // Verde medio
+             3: 'linear-gradient(to bottom right, #6ee7b7, #047857)'  // Verde claro
+         };
+
+
+        // Puntos necesarios para pasar de nivel (cada 50 puntos)
+        const pointsPerLevel = 50;
+
+        let boardSize = levelSizes[1]; // Tamaño del tablero actual, inicia en Nivel 1
+        let currentLevel = 1; // Nivel actual
+
         const pieceTypes = [
             'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im1.svg',
             'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im2.svg',
@@ -115,14 +191,19 @@
         let score = 0;
         let selectedPiece = null; // Para almacenar el elemento de la pieza actualmente seleccionada
         let isSwapping = false; // Indicador para evitar múltiples intercambios a la vez
+        let hintTimeout = null; // Para controlar el tiempo de la animación de pista
 
         const gameBoard = document.getElementById('game-board');
         const scoreDisplay = document.getElementById('score-display');
+        const levelDisplay = document.getElementById('level-display'); // Elemento para mostrar el nivel
         const restartButton = document.getElementById('restart-button');
+        const hintButton = document.getElementById('hint-button'); // Botón de pista
 
-        // Configurar las columnas/filas de la cuadrícula según el tamaño del tablero
-        gameBoard.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
-        gameBoard.style.gridTemplateRows = `repeat(${boardSize}, 1fr)`;
+
+        // Función para actualizar la visualización del nivel
+        function updateLevelDisplay() {
+             levelDisplay.textContent = `Nivel: ${currentLevel}`;
+        }
 
         // Función para crear un elemento de pieza
         function createPiece(row, col, type) {
@@ -138,33 +219,117 @@
 
         // Función para inicializar el tablero de juego con piezas aleatorias
         function initializeBoard() {
+            // Actualizar el tamaño del tablero según el nivel actual
+            boardSize = levelSizes[currentLevel];
+            gameBoard.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
+            gameBoard.style.gridTemplateRows = `repeat(${boardSize}, 1fr)`;
+
+            // Actualizar el fondo del cuerpo según el nivel actual
+            document.body.style.background = levelBackgrounds[currentLevel];
+
             board = [];
             gameBoard.innerHTML = ''; // Limpiar el tablero anterior
-            score = 0;
+            // La puntuación no se reinicia al cambiar de nivel, solo al reiniciar el juego completo
+            // score = 0;
             updateScoreDisplay();
+            updateLevelDisplay(); // Actualizar la visualización del nivel
             selectedPiece = null;
             isSwapping = false;
 
-            for (let r = 0; r < boardSize; r++) {
-                board[r] = [];
-                for (let c = 0; c < boardSize; c++) {
-                    // Seleccionar un tipo de pieza aleatorio
-                    let randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
+            // Generar tablero sin coincidencias iniciales
+            generateBoardWithoutMatches();
 
-                    // Verificación simple para evitar coincidencias inmediatas al generar (se puede mejorar)
-                    while ((c >= 2 && board[r][c - 1] === randomType && board[r][c - 2] === randomType) ||
-                           (r >= 2 && board[r - 1][c] === randomType && board[r - 2][c] === randomType)) {
-                        randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
-                    }
-
-                    board[r][c] = randomType;
-                    const pieceElement = createPiece(r, c, randomType);
-                    gameBoard.appendChild(pieceElement);
-                }
-            }
-            // Después de inicializar, verificar y eliminar cualquier coincidencia inicial
+            // Después de inicializar, verificar y eliminar cualquier coincidencia inicial (redundante con la generación, pero seguro)
             setTimeout(handleMatches, 500); // Añadir un ligero retraso
         }
+
+         // Función para generar un tablero sin coincidencias iniciales
+         function generateBoardWithoutMatches() {
+             for (let r = 0; r < boardSize; r++) {
+                 // Asegurarse de que la fila exista en el array board
+                 if (!board[r]) {
+                     board[r] = [];
+                 }
+                 for (let c = 0; c < boardSize; c++) {
+                     let randomType;
+                     do {
+                         randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
+                         // Asignar temporalmente para verificar coincidencias
+                         board[r][c] = randomType;
+                     } while (hasImmediateMatch(r, c)); // Repetir si hay coincidencia inmediata
+
+                     // Crear y añadir el elemento de la pieza al DOM
+                     const pieceElement = createPiece(r, c, randomType);
+                     gameBoard.appendChild(pieceElement);
+                 }
+             }
+         }
+
+         // Función auxiliar para verificar si una pieza en (r, c) crea una coincidencia inmediata
+         function hasImmediateMatch(r, c) {
+             const pieceType = board[r][c];
+             if (pieceType === null) return false;
+
+             const minMatchSize = currentLevel === 1 ? 2 : 3;
+
+             // Verificar coincidencia horizontal a la izquierda
+             if (c >= minMatchSize - 1) {
+                 let horizontalMatch = true;
+                 for (let i = 1; i < minMatchSize; i++) {
+                     const checkC = c - i;
+                     // Explicitly check column boundary before accessing board
+                     if (checkC < 0 || board[r][checkC] !== pieceType) {
+                         horizontalMatch = false;
+                         break;
+                     }
+                 }
+                 if (horizontalMatch) return true;
+             }
+              // Verificar coincidencia horizontal hacia la derecha
+             if (c <= boardSize - minMatchSize) {
+                  let horizontalMatch = true;
+                  for (let i = 1; i < minMatchSize; i++) {
+                      const checkC = c + i;
+                       // Explicitly check column boundary before accessing board
+                      if (checkC >= boardSize || board[r][checkC] !== pieceType) {
+                          horizontalMatch = false;
+                          break;
+                      }
+                  }
+                  if (horizontalMatch) return true;
+             }
+
+
+             // Verificar coincidencia vertical hacia arriba
+             if (r >= minMatchSize - 1) {
+                 let verticalMatch = true;
+                 for (let i = 1; i < minMatchSize; i++) {
+                     const checkR = r - i;
+                     // Explicitly check row boundary before accessing board
+                     if (checkR < 0 || board[checkR][c] !== pieceType) {
+                         verticalMatch = false;
+                         break;
+                     }
+                 }
+                 if (verticalMatch) return true;
+             }
+              // Verificar coincidencia vertical hacia abajo
+             if (r <= boardSize - minMatchSize) {
+                  let verticalMatch = true;
+                  for (let i = 1; i < minMatchSize; i++) {
+                      const checkR = r + i;
+                      // **CORRECTION HERE:** Check if board[checkR] is defined before accessing [c]
+                      if (checkR >= boardSize || board[checkR] === undefined || board[checkR][c] !== pieceType) {
+                          verticalMatch = false;
+                          break;
+                      }
+                  }
+                  if (verticalMatch) return true;
+             }
+
+             return false; // No hay coincidencia inmediata
+         }
+
 
         // Función para actualizar la visualización de la puntuación
         function updateScoreDisplay() {
@@ -174,6 +339,9 @@
         // Función para manejar el clic en una pieza
         function handlePieceClick(event) {
             if (isSwapping) return; // Evitar clics durante la animación de intercambio
+
+            // Detener cualquier animación de pista activa
+            stopHintAnimation();
 
             const clickedPiece = event.target;
 
@@ -227,9 +395,14 @@
             if (matches.length > 0) {
                 // Coincidencias encontradas, manejarlas
                 await new Promise(resolve => setTimeout(resolve, 300)); // Pequeño retraso para el intercambio visual
-                handleMatches();
+                handleMatches(); // Esto procesará las coincidencias, puntuará, caerá y rellenará
             } else {
-                // No hay coincidencias, intercambiar de vuelta
+                // No hay coincidencias, restar puntos
+                score -= 5;
+                if (score < 0) score = 0; // Evitar puntuación negativa
+                updateScoreDisplay();
+
+                // Intercambiar de vuelta (opcional en este modo, pero mantiene la consistencia visual si no hay match)
                 await new Promise(resolve => setTimeout(resolve, 300)); // Pequeño retraso antes de intercambiar de vuelta
                 swapElements(piece1, piece2); // Intercambiar visualmente de vuelta
                 // Intercambiar de vuelta en el array del tablero
@@ -272,12 +445,25 @@
             const matches = [];
             const visited = new Set(); // Para evitar añadir la misma pieza varias veces
 
+            // Determinar el número mínimo de piezas para un match según el nivel
+            const minMatchSize = currentLevel === 1 ? 2 : 3;
+
             // Verificar coincidencias horizontales
             for (let r = 0; r < boardSize; r++) {
-                for (let c = 0; c < boardSize - 2; c++) {
+                // Ajustar el límite del bucle para la verificación horizontal
+                for (let c = 0; c <= boardSize - minMatchSize; c++) {
                     const pieceType = board[r][c];
-                    if (pieceType && board[r][c + 1] === pieceType && board[r][c + 2] === pieceType) {
-                        // Se encontró una coincidencia horizontal de 3 o más
+                    // Verificar si hay al menos minMatchSize piezas iguales consecutivas
+                    let isMatch = true;
+                    for(let i = 1; i < minMatchSize; i++) {
+                        if (board[r][c + i] !== pieceType || pieceType === null) {
+                            isMatch = false;
+                            break;
+                        }
+                    }
+
+                    if (isMatch) {
+                        // Se encontró una coincidencia horizontal de minMatchSize o más
                         let matchLength = 0;
                         let currentC = c;
                         while (currentC < boardSize && board[r][currentC] === pieceType) {
@@ -289,17 +475,28 @@
                             currentC++;
                             matchLength++;
                         }
-                        c += matchLength - 1; // Saltar piezas ya verificadas en esta fila
+                        // Avanzar el contador 'c' para no verificar las mismas piezas
+                        c += matchLength - 1;
                     }
                 }
             }
 
             // Verificar coincidencias verticales
             for (let c = 0; c < boardSize; c++) {
-                for (let r = 0; r < boardSize - 2; r++) {
+                // Ajustar el límite del bucle para la verificación vertical
+                for (let r = 0; r <= boardSize - minMatchSize; r++) {
                     const pieceType = board[r][c];
-                    if (pieceType && board[r + 1][c] === pieceType && board[r + 2][c] === pieceType) {
-                         // Se encontró una coincidencia vertical de 3 o más
+                     // Verificar si hay al menos minMatchSize piezas iguales consecutivas
+                    let isMatch = true;
+                    for(let i = 1; i < minMatchSize; i++) {
+                        if (board[r + i][c] !== pieceType || pieceType === null) {
+                            isMatch = false;
+                            break;
+                        }
+                    }
+
+                    if (isMatch) {
+                         // Se encontró una coincidencia vertical de minMatchSize o más
                          let matchLength = 0;
                          let currentR = r;
                          while (currentR < boardSize && board[currentR][c] === pieceType) {
@@ -311,7 +508,8 @@
                              currentR++;
                              matchLength++;
                          }
-                         r += matchLength - 1; // Saltar piezas ya verificadas en esta columna
+                         // Avanzar el contador 'r' para no verificar las mismas piezas
+                         r += matchLength - 1;
                     }
                 }
             }
@@ -325,8 +523,19 @@
 
             while (matches.length > 0) {
                 // Añadir puntuación basada en el número de piezas coincidentes
-                score += matches.length * 10; // 10 puntos por pieza
+                // Cada coincidencia son 20 puntos por pieza
+                score += matches.length * 20;
                 updateScoreDisplay();
+
+                // Verificar si se alcanza el umbral para el siguiente nivel (cada 50 puntos)
+                const nextLevelThreshold = currentLevel * pointsPerLevel;
+                if (currentLevel < Object.keys(levelSizes).length && score >= nextLevelThreshold) {
+                    currentLevel++;
+                    alert(`¡Felicidades! Has alcanzado el Nivel ${currentLevel}. El tablero se hará más grande.`);
+                    initializeBoard(); // Reiniciar el tablero con el nuevo tamaño
+                    return; // Salir del bucle while para evitar procesar más coincidencias en el tablero anterior
+                }
+
 
                 // Aplicar animación de "explosión" y luego eliminar
                 matches.forEach(match => {
@@ -480,9 +689,167 @@
             gameBoard.appendChild(fragment); // Añadir todas las piezas a la vez
         }
 
+        // Función para encontrar una pista (un movimiento que crea una coincidencia)
+        function findHint() {
+            // Determinar el tamaño mínimo de match para la pista
+            const minMatchSize = currentLevel === 1 ? 2 : 3;
+
+            // Iterar sobre cada pieza en el tablero
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const pieceType = board[r][c];
+                    if (pieceType === null) continue; // Saltar espacios vacíos
+
+                    // Intentar intercambiar con las piezas adyacentes
+                    const adjacentMoves = [
+                        { dr: -1, dc: 0 }, // Arriba
+                        { dr: 1, dc: 0 },  // Abajo
+                        { dr: 0, dc: -1 }, // Izquierda
+                        { dr: 0, dc: 1 }   // Derecha
+                    ];
+
+                    for (const move of adjacentMoves) {
+                        const newR = r + move.dr;
+                        const newC = c + move.dc;
+
+                        // Verificar que la posición adyacente esté dentro del tablero
+                        if (newR >= 0 && newR < boardSize && newC >= 0 && newC < boardSize) {
+                            // Intercambiar temporalmente en una copia del tablero
+                            const tempBoard = board.map(row => [...row]); // Crear copia profunda
+                            [tempBoard[r][c], tempBoard[newR][newC]] = [tempBoard[newR][newC], tempBoard[r][c]];
+
+                            // Verificar si este intercambio crea una coincidencia en el tablero temporal
+                            const tempMatches = findMatchesInBoard(tempBoard, minMatchSize);
+
+
+                            if (tempMatches.length > 0) {
+                                // Se encontró una pista, devolver las coordenadas de la pieza original
+                                return { row: r, col: c };
+                            }
+                        }
+                    }
+                }
+            }
+            return null; // No se encontró ninguna pista
+        }
+
+        // Función auxiliar para encontrar coincidencias en un tablero dado (usado para la pista)
+        // Recibe el tablero a buscar y el tamaño mínimo de match
+        function findMatchesInBoard(boardToSearch, minMatchSize) {
+             const matches = [];
+             const visited = new Set();
+
+             // Verificar coincidencias horizontales
+             for (let r = 0; r < boardSize; r++) {
+                 for (let c = 0; c <= boardSize - minMatchSize; c++) {
+                     const pieceType = boardToSearch[r][c];
+                     let isMatch = true;
+                     for(let i = 1; i < minMatchSize; i++) {
+                         if (boardToSearch[r][c + i] !== pieceType || pieceType === null) {
+                             isMatch = false;
+                             break;
+                         }
+                     }
+
+                     if (isMatch) {
+                         let currentC = c;
+                         while (currentC < boardSize && boardToSearch[r][currentC] === pieceType) {
+                             const pieceId = `${r}-${currentC}`;
+                             if (!visited.has(pieceId)) {
+                                 matches.push({ row: r, col: currentC });
+                                 visited.add(pieceId);
+                             }
+                             currentC++;
+                         }
+                     }
+                 }
+             }
+
+             // Verificar coincidencias verticales
+             for (let c = 0; c < boardSize; c++) {
+                 for (let r = 0; r <= boardSize - minMatchSize; r++) {
+                     const pieceType = boardToSearch[r][c];
+                     let isMatch = true;
+                     for(let i = 1; i < minMatchSize; i++) {
+                         if (boardToSearch[r + i][c] !== pieceType || pieceType === null) {
+                             isMatch = false;
+                             break;
+                         }
+                     }
+
+                     if (isMatch) {
+                          let currentR = r;
+                          while (currentR < boardSize && boardToSearch[currentR][c] === pieceType) {
+                              const pieceId = `${currentR}-${c}`;
+                              if (!visited.has(pieceId)) {
+                                  matches.push({ row: currentR, col: c });
+                                  visited.add(pieceId);
+                              }
+                              currentR++;
+                          }
+                     }
+                 }
+             }
+
+             return matches;
+        }
+
+
+        // Función para aplicar la animación de pista a una pieza
+        function applyHintAnimation(row, col) {
+            const pieceElement = gameBoard.querySelector(`[data-row='${row}'][data-col='${col}']`);
+            if (pieceElement) {
+                // Eliminar animaciones de pista anteriores
+                stopHintAnimation();
+                // Aplicar la nueva animación de rotación
+                pieceElement.classList.add('hint-rotate');
+                // Detener la animación después de un tiempo
+                hintTimeout = setTimeout(() => {
+                    stopHintAnimation();
+                }, 2000); // Animación dura 2 segundos
+            }
+        }
+
+        // Función para detener la animación de pista
+        function stopHintAnimation() {
+             // Encontrar todas las piezas con la clase de animación y removerla
+             const animatedPieces = gameBoard.querySelectorAll('.hint-rotate'); // Cambiado a 'hint-rotate'
+             animatedPieces.forEach(piece => {
+                 piece.classList.remove('hint-rotate');
+             });
+             // Limpiar el timeout si existe
+             if (hintTimeout) {
+                 clearTimeout(hintTimeout);
+                 hintTimeout = null;
+             }
+        }
+
 
         // Listener de eventos para el botón de reiniciar
-        restartButton.addEventListener('click', initializeBoard);
+        restartButton.addEventListener('click', () => {
+            currentLevel = 1; // Reiniciar al Nivel 1
+            score = 0; // Reiniciar puntuación
+            initializeBoard();
+        });
+
+        // Listener de eventos para el botón de pista
+        hintButton.addEventListener('click', () => {
+            if (isSwapping) return; // No dar pista durante un intercambio
+
+            const hint = findHint();
+            if (hint) {
+                applyHintAnimation(hint.row, hint.col);
+                // Descontar puntos por usar la pista
+                score -= 10;
+                if (score < 0) score = 0; // Evitar puntuación negativa
+                updateScoreDisplay();
+            } else {
+                // Opcional: Mostrar un mensaje si no hay movimientos posibles
+                console.log("No hay movimientos posibles en este momento.");
+                // alert("No hay movimientos posibles en este momento."); // Podría ser molesto
+            }
+        });
+
 
         // Inicializar el juego cuando la página se carga
         window.onload = initializeBoard;
