@@ -3,446 +3,489 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Juego Match-3 Básico</title>
+    <title>Lola Match-3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Estilos de style.css */
+        /* Añadir un fondo degradado al cuerpo (colores más oscuros) */
         body {
-            display: flex;
+            background: linear-gradient(to bottom right, #10b981, #059669); /* Degradado más oscuro */
+            min-height: 100vh; /* Asegurar que el degradado cubra toda la altura de la ventana */
+            display: flex; /* Usar flexbox para centrar el contenido */
             flex-direction: column;
             align-items: center;
-            font-family: sans-serif;
-            background-color: #222;
-            color: #fff;
-            margin-top: 20px;
+            justify-content: center;
+            padding: 1rem; /* Añadir algo de relleno */
+            font-family: sans-serif; /* Fuente por defecto */
         }
 
-        h1 {
-            margin-bottom: 20px;
-        }
-
+        /* Estilos personalizados para el tablero de juego */
         #game-board {
-            display: grid; /* Usamos CSS Grid para hacer la cuadrícula */
-            /* Las columnas y filas se definirán en JavaScript */
-            border: 5px solid #444;
-            background-color: #333;
-            gap: 2px; /* Espacio entre las piezas */
-            touch-action: none; /* Previene el comportamiento táctil por defecto */
+            display: grid;
+            /* Las columnas y filas de la cuadrícula se establecerán con JavaScript */
+            gap: 2px; /* Pequeño espacio entre piezas */
+            background-color: rgba(0, 0, 0, 0.3); /* Fondo del tablero más oscuro y semi-transparente */
+            border-radius: 8px; /* Bordes redondeados para el tablero */
+            padding: 5px; /* Relleno alrededor del tablero */
+            margin: 20px auto; /* Centrar el tablero y añadir margen */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* Sombra más pronunciada */
+            width: 100%; /* Hacer el tablero responsivo */
+            max-width: 500px; /* Ancho máximo para pantallas más grandes */
+            aspect-ratio: 1 / 1; /* Mantener una relación de aspecto cuadrada */
         }
 
         .game-piece {
-            width: 50px; /* Tamaño de la pieza (ajusta si tus imágenes son diferentes) */
-            height: 50px;
-            background-color: #555; /* Color de fondo por si la imagen no carga */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            border-radius: 5px;
-            overflow: hidden; /* Asegura que la imagen no se salga */
-            box-sizing: border-box; /* Incluir borde en el tamaño */
-            /* Añadido para animaciones */
-            transition: transform 0.2s ease-in-out, opacity 0.5s ease-out;
-        }
-
-        .game-piece img,
-        .game-piece svg { /* También aplica a los SVG */
-            width: 100%; /* La imagen/SVG ocupará todo el espacio de la pieza */
+            width: 100%; /* Las piezas llenan su celda de la cuadrícula */
             height: 100%;
-            object-fit: cover; /* Asegura que la imagen cubra el área sin distorsionarse */
-            pointer-events: none; /* Ignorar clics en la imagen/svg, solo en el div padre */
+            object-fit: contain; /* Asegurar que la imagen completa sea visible */
+            cursor: pointer; /* Indicar que es clickeable */
+            transition: transform 0.1s ease-in-out; /* Transición suave al pasar el ratón/clic */
+            border-radius: 4px; /* Bordes redondeados para las piezas */
+            /* Añadir transición para la animación de caída */
+            transition: transform 0.4s ease-out, opacity 0.4s ease-out;
         }
 
-        /* Estilo para piezas que van a ser eliminadas */
-        .game-piece.match {
-            opacity: 0; /* Se desvanecen */
-            transform: scale(0.8); /* Se encogen un poco */
+        .game-piece:hover {
+            transform: scale(1.05); /* Ligeramente más grande al pasar el ratón */
+        }
+
+        .selected {
+            border: 3px solid #00f; /* Borde azul para la pieza seleccionada */
+            box-sizing: border-box; /* Incluir el borde en el tamaño total del elemento */
+        }
+
+        /* CSS para la animación de cascada */
+        .falling {
+            transform: translateY(-100%); /* Empezar fuera de pantalla arriba */
+            opacity: 0; /* Empezar invisible */
+        }
+
+        /* CSS para la animación de "explosión" al hacer match */
+        .exploding {
+            animation: explode 0.4s ease-out forwards; /* Aplicar la animación */
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.5) rotate(10deg); /* Reducir tamaño y rotar ligeramente */
+                opacity: 0; /* Desvanecer */
+            }
+        }
+
+
+        /* Ajustes responsivos */
+        @media (max-width: 600px) {
+            #game-board {
+                margin: 10px auto;
+            }
         }
     </style>
 </head>
-<body>
-    <h1>Mi Juego Match-3 Básico</h1>
-    <div id="game-board">
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <h1 class="text-4xl font-bold mb-6 text-blue-600">Lola Match-3</h1>
+
+    <div class="w-full flex justify-center mb-4">
+        <div id="score-display" class="text-2xl font-semibold text-gray-700">Puntuación: 0</div>
+    </div>
+
+
+    <div id="game-board" class="w-full max-w-lg">
         </div>
 
+    <button id="restart-button" class="mt-6 px-6 py-3 bg-green-500 text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition duration-300">
+        Reiniciar Juego
+    </button>
+
     <script>
-        // --- Configuración del Juego ---
         const boardSize = 8; // Tablero de 8x8
-        const pieceSize = 50; // Tamaño visual de cada pieza en píxeles (debe coincidir con el CSS)
-        const animationDuration = 200; // Duración de las animaciones en milisegundos
-
-        // --- Definición de las Piezas ---
-        // ARRAY DE IMÁGENES/SVG: Aquí defines las imágenes o SVG que quieres usar como piezas.
-        // ¡CAMBIA ESTOS VALORES por las rutas a tus propias imágenes o define tus propios SVG!
-
-        // OPCIÓN 1: Usar código SVG incrustado (funciona en la previsualización aquí)
-        const pieceRepresentations = [
-            '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="25" r="20" fill="#ff6347"/></svg>', // Círculo rojo
-            '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="40" height="40" fill="#4682b4"/></svg>', // Cuadrado azul
-            '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><polygon points="25,5 45,45 5,45" fill="#32cd32"/></svg>', // Triángulo verde
-            '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><path d="M25 5 L45 25 L25 45 L5 25 Z" fill="#ffd700"/></svg>', // Diamante amarillo
-            '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><path d="M25 5 L35 20 L50 20 L40 30 L45 45 L25 35 L5 45 L10 30 L0 20 L15 20 Z" fill="#9370db"/></svg>', // Estrella púrpura
-            '<svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><path d="M25 5 A20 20 0 1 1 25 45 A20 20 0 1 1 25 5 Z" fill="#00ced1"/></svg>' // Anillo turquesa
+        const pieceTypes = [
+            'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im1.svg',
+            'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im2.svg',
+            'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im3.svg',
+            'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im4.svg',
+            'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im5.svg',
+            'https://raw.githubusercontent.com/MauroCasarin/Lola-Match/refs/heads/main/im6.svg'
         ];
 
-        // OPCIÓN 2: Usar rutas a archivos de imagen (si ejecutas esto localmente con tus archivos o si las imágenes están en línea)
-        // Para usar esta opción, comenta la línea de 'pieceRepresentations' de arriba
-        // y descomenta la siguiente línea, reemplazando las rutas por las tuyas si son diferentes.
-        /*
-        const pieceRepresentations = [
-             'images/im1.svg', // Imagen para el tipo de pieza 0
-             'images/im2.svg', // Imagen para el tipo de pieza 1
-             'images/im3.svg', // Imagen para el tipo de pieza 2
-             'images/im4.svg', // Imagen para el tipo de pieza 3
-             'images/im5.svg', // Imagen para el tipo de pieza 4
-             'images/im6.svg'  // Imagen para el tipo de pieza 5
-        ];
-        */
+        let board = [];
+        let score = 0;
+        let selectedPiece = null; // Para almacenar el elemento de la pieza actualmente seleccionada
+        let isSwapping = false; // Indicador para evitar múltiples intercambios a la vez
 
+        const gameBoard = document.getElementById('game-board');
+        const scoreDisplay = document.getElementById('score-display');
+        const restartButton = document.getElementById('restart-button');
 
-        // --- Variables del Juego ---
-        const gameBoardElement = document.getElementById('game-board');
-        let board = []; // Matriz 2D para representar el estado del tablero (qué tipo de pieza hay en cada celda)
-        let selectedPiece = null; // Para rastrear la primera pieza seleccionada (para el intercambio)
-        let isProcessing = false; // Bandera para evitar clics mientras se procesan combinaciones/caídas
+        // Configurar las columnas/filas de la cuadrícula según el tamaño del tablero
+        gameBoard.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
+        gameBoard.style.gridTemplateRows = `repeat(${boardSize}, 1fr)`;
 
-        // --- Funciones del Juego ---
+        // Función para crear un elemento de pieza
+        function createPiece(row, col, type) {
+            const img = document.createElement('img');
+            img.src = type;
+            img.classList.add('game-piece');
+            img.dataset.row = row;
+            img.dataset.col = col;
+            img.draggable = false; // Evitar el comportamiento de arrastre predeterminado del navegador
+            img.addEventListener('click', handlePieceClick);
+            return img;
+        }
 
-        // Inicializa el tablero llenándolo con piezas aleatorias
+        // Función para inicializar el tablero de juego con piezas aleatorias
         function initializeBoard() {
-            board = []; // Limpiar el tablero actual
+            board = [];
+            gameBoard.innerHTML = ''; // Limpiar el tablero anterior
+            score = 0;
+            updateScoreDisplay();
+            selectedPiece = null;
+            isSwapping = false;
+
             for (let r = 0; r < boardSize; r++) {
-                let row = [];
+                board[r] = [];
                 for (let c = 0; c < boardSize; c++) {
-                    // Asigna un tipo de pieza aleatorio
-                    const randomPieceType = Math.floor(Math.random() * pieceRepresentations.length);
-                    row.push(randomPieceType);
+                    // Seleccionar un tipo de pieza aleatorio
+                    let randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
+
+                    // Verificación simple para evitar coincidencias inmediatas al generar (se puede mejorar)
+                    while ((c >= 2 && board[r][c - 1] === randomType && board[r][c - 2] === randomType) ||
+                           (r >= 2 && board[r - 1][c] === randomType && board[r - 2][c] === randomType)) {
+                        randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
+                    }
+
+                    board[r][c] = randomType;
+                    const pieceElement = createPiece(r, c, randomType);
+                    gameBoard.appendChild(pieceElement);
                 }
-                board.push(row);
             }
-            // Después de llenar, resolver cualquier match inicial
-            resolveInitialMatches();
-            renderBoard(); // Dibuja el tablero en la página
+            // Después de inicializar, verificar y eliminar cualquier coincidencia inicial
+            setTimeout(handleMatches, 500); // Añadir un ligero retraso
         }
 
-        // Resuelve cualquier match que se haya generado al inicializar el tablero
-        function resolveInitialMatches() {
-            let matches = findMatches();
-            while (matches.length > 0) {
-                matches.forEach(matchPiece => {
-                    // Cambiar el tipo de pieza de una pieza en el match a un tipo diferente
-                    let newPieceType = Math.floor(Math.random() * pieceRepresentations.length);
-                    while (newPieceType === board[matchPiece.row][matchPiece.col]) {
-                         newPieceType = Math.floor(Math.random() * pieceRepresentations.length);
-                    }
-                    board[matchPiece.row][matchPiece.col] = newPieceType;
-                });
-                matches = findMatches(); // Buscar nuevos matches después de los cambios
-            }
+        // Función para actualizar la visualización de la puntuación
+        function updateScoreDisplay() {
+            scoreDisplay.textContent = `Puntuación: ${score}`;
         }
 
+        // Función para manejar el clic en una pieza
+        function handlePieceClick(event) {
+            if (isSwapping) return; // Evitar clics durante la animación de intercambio
 
-        // Dibuja el tablero en el HTML
-        function renderBoard() {
-            gameBoardElement.innerHTML = ''; // Limpia el contenido actual del tablero
+            const clickedPiece = event.target;
 
-            // Configura las columnas y filas del CSS Grid basado en el tamaño del tablero
-            gameBoardElement.style.gridTemplateColumns = `repeat(${boardSize}, ${pieceSize}px)`;
-            gameBoardElement.style.gridTemplateRows = `repeat(${boardSize}, ${pieceSize}px)`;
+            if (!selectedPiece) {
+                // Primera pieza seleccionada
+                selectedPiece = clickedPiece;
+                selectedPiece.classList.add('selected');
+            } else if (selectedPiece === clickedPiece) {
+                // Deseleccionar la misma pieza
+                selectedPiece.classList.remove('selected');
+                selectedPiece = null;
+            } else {
+                // Segunda pieza seleccionada, intentar un intercambio
+                const row1 = parseInt(selectedPiece.dataset.row);
+                const col1 = parseInt(selectedPiece.dataset.col);
+                const row2 = parseInt(clickedPiece.dataset.row);
+                const col2 = parseInt(clickedPiece.dataset.col);
 
-            for (let r = 0; r < boardSize; r++) {
-                for (let c = 0; c < boardSize; c++) {
-                    const pieceType = board[r][c]; // Obtiene el tipo de pieza de la matriz interna
-                    const pieceElement = document.createElement('div');
-                    pieceElement.classList.add('game-piece');
-                    // Guarda la posición de la pieza en el elemento HTML
-                    pieceElement.dataset.row = r;
-                    pieceElement.dataset.col = c;
+                // Verificar si las piezas son adyacentes (horizontal o verticalmente)
+                const isAdjacent = (Math.abs(row1 - row2) + Math.abs(col1 - col2)) === 1;
 
-                    // --- Añade la representación de la pieza (SVG o IMG) ---
-                    const pieceContent = pieceRepresentations[pieceType];
-
-                    // Verifica si el contenido es una ruta de archivo (heurística simple: si contiene '/')
-                    if (pieceContent.includes('/')) {
-                         // Si parece una ruta, crea un elemento <img>
-                        const imgElement = document.createElement('img');
-                        imgElement.src = pieceContent; // <-- Carga la imagen desde la ruta
-                        imgElement.alt = `Piece ${pieceType}`; // Texto alternativo para accesibilidad
-                        pieceElement.appendChild(imgElement);
-                    } else {
-                        // Si no parece una ruta, asume que es código SVG y lo inserta directamente
-                         pieceElement.innerHTML = pieceContent; // <-- Inserta el código SVG
-                    }
-
-
-                    // Añade un evento de clic a cada pieza
-                    pieceElement.addEventListener('click', handlePieceClick);
-
-                    gameBoardElement.appendChild(pieceElement);
+                if (isAdjacent) {
+                    attemptSwap(selectedPiece, clickedPiece);
+                } else {
+                    // No son adyacentes, deseleccionar la primera y seleccionar la nueva
+                    selectedPiece.classList.remove('selected');
+                    selectedPiece = clickedPiece;
+                    selectedPiece.classList.add('selected');
                 }
             }
         }
 
-        // Obtiene el elemento HTML de una pieza en una posición específica
-        function getPieceElement(row, col) {
-            return gameBoardElement.querySelector(`.game-piece[data-row="${row}"][data-col="${col}"]`);
+        // Función para intentar un intercambio y verificar coincidencias
+        async function attemptSwap(piece1, piece2) {
+            isSwapping = true; // Establecer indicador de intercambio
+
+            const row1 = parseInt(piece1.dataset.row);
+            const col1 = parseInt(piece1.dataset.col);
+            const row2 = parseInt(piece2.dataset.row);
+            const col2 = parseInt(piece2.dataset.col);
+
+            // Intercambiar visualmente las piezas
+            swapElements(piece1, piece2);
+
+            // Intercambiar temporalmente en el array del tablero
+            [board[row1][col1], board[row2][col2]] = [board[row2][col2], board[row1][col1]];
+
+            // Verificar coincidencias después del intercambio
+            const matches = findMatches();
+
+            if (matches.length > 0) {
+                // Coincidencias encontradas, manejarlas
+                await new Promise(resolve => setTimeout(resolve, 300)); // Pequeño retraso para el intercambio visual
+                handleMatches();
+            } else {
+                // No hay coincidencias, intercambiar de vuelta
+                await new Promise(resolve => setTimeout(resolve, 300)); // Pequeño retraso antes de intercambiar de vuelta
+                swapElements(piece1, piece2); // Intercambiar visualmente de vuelta
+                // Intercambiar de vuelta en el array del tablero
+                [board[row1][col1], board[row2][col2]] = [board[row2][col2], board[row1][col1]];
+            }
+
+            // Deseleccionar piezas
+            piece1.classList.remove('selected');
+            piece2.classList.remove('selected');
+            selectedPiece = null;
+            isSwapping = false; // Restablecer indicador de intercambio
         }
 
-        // Verifica si dos piezas son adyacentes (horizontal o verticalmente)
-        function areAdjacent(piece1, piece2) {
-            const rowDiff = Math.abs(piece1.row - piece2.row);
-            const colDiff = Math.abs(piece1.col - piece2.col);
-            return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
+        // Función para intercambiar visualmente dos elementos de pieza
+        function swapElements(el1, el2) {
+            const parent = el1.parentNode;
+            const next1 = el1.nextSibling;
+            const next2 = el2.nextSibling;
+
+            if (next1 === el2) {
+                parent.insertBefore(el2, el1);
+            } else if (next2 === el1) {
+                parent.insertBefore(el1, el2);
+            } else {
+                parent.insertBefore(el2, next1);
+                parent.insertBefore(el1, next2);
+            }
+
+            // Intercambiar sus atributos de datos de fila/columna
+            const row1 = el1.dataset.row;
+            const col1 = el1.dataset.col;
+            el1.dataset.row = el2.dataset.row;
+            el1.dataset.col = el2.dataset.col;
+            el2.dataset.row = row1;
+            el2.dataset.col = col1;
         }
 
-        // Intercambia dos piezas en la matriz interna y actualiza visualmente
-        function swapPieces(piece1, piece2) {
-            // Intercambiar en la matriz interna
-            const piece1Type = board[piece1.row][piece1.col];
-            const piece2Type = board[piece2.row][piece2.col];
-            board[piece1.row][piece1.col] = piece2Type;
-            board[piece2.row][piece2.col] = piece1Type;
-
-            // Intercambiar visualmente (moviendo los elementos DOM)
-            const piece1Element = piece1.element;
-            const piece2Element = piece2.element;
-
-            // Clonar para mantener eventos y data-atributos
-            const piece1Clone = piece1Element.cloneNode(true);
-            const piece2Clone = piece2Element.cloneNode(true);
-
-            // Reemplazar en el DOM
-            gameBoardElement.replaceChild(piece2Clone, piece1Element);
-            gameBoardElement.replaceChild(piece1Clone, piece2Element);
-
-            // Actualizar data-atributos en los clones
-            piece1Clone.dataset.row = piece2.row;
-            piece1Clone.dataset.col = piece2.col;
-            piece2Clone.dataset.row = piece1.row;
-            piece2Clone.dataset.col = piece1.col;
-
-            // Volver a añadir los event listeners a los clones
-            piece1Clone.addEventListener('click', handlePieceClick);
-            piece2Clone.addEventListener('click', handlePieceClick);
-
-             // Opcional: Añadir una pequeña animación de movimiento
-             // Esto es más complejo y requeriría calcular la distancia y usar transform: translate
-             // Por ahora, la transición CSS en .game-piece ya da un efecto simple al cambiar de posición.
-        }
-
-        // Encuentra todas las combinaciones (matches) de 3 o más piezas
+        // Función para encontrar todas las coincidencias en el tablero
         function findMatches() {
             const matches = [];
+            const visited = new Set(); // Para evitar añadir la misma pieza varias veces
 
-            // Buscar matches horizontales
+            // Verificar coincidencias horizontales
             for (let r = 0; r < boardSize; r++) {
-                let currentMatch = [];
-                for (let c = 0; c < boardSize; c++) {
-                    if (c < boardSize - 2) {
-                        const type1 = board[r][c];
-                        const type2 = board[r][c + 1];
-                        const type3 = board[r][c + 2];
-
-                        if (type1 !== undefined && type1 !== -1 && type1 === type2 && type2 === type3) {
-                            // Encontrado un match de 3 o más
-                            currentMatch.push({ row: r, col: c });
-                            currentMatch.push({ row: r, col: c + 1 });
-                            currentMatch.push({ row: r, col: c + 2 });
-
-                            // Continuar buscando si hay más piezas en la misma línea
-                            let k = c + 3;
-                            while (k < boardSize && board[r][k] !== -1 && board[r][k] === type1) {
-                                currentMatch.push({ row: r, col: k });
-                                k++;
+                for (let c = 0; c < boardSize - 2; c++) {
+                    const pieceType = board[r][c];
+                    if (pieceType && board[r][c + 1] === pieceType && board[r][c + 2] === pieceType) {
+                        // Se encontró una coincidencia horizontal de 3 o más
+                        let matchLength = 0;
+                        let currentC = c;
+                        while (currentC < boardSize && board[r][currentC] === pieceType) {
+                            const pieceId = `${r}-${currentC}`;
+                            if (!visited.has(pieceId)) {
+                                matches.push({ row: r, col: currentC });
+                                visited.add(pieceId);
                             }
-
-                            // Añadir las piezas del match a la lista global de matches (evitando duplicados)
-                             currentMatch.forEach(matchPiece => {
-                                 if (!matches.some(m => m.row === matchPiece.row && m.col === matchPiece.col)) {
-                                     matches.push(matchPiece);
-                                 }
-                             });
-
-                            c = k - 1; // Saltar las piezas ya incluidas en este match
-                            currentMatch = []; // Reiniciar para el siguiente match
+                            currentC++;
+                            matchLength++;
                         }
+                        c += matchLength - 1; // Saltar piezas ya verificadas en esta fila
                     }
                 }
             }
 
-            // Buscar matches verticales
+            // Verificar coincidencias verticales
             for (let c = 0; c < boardSize; c++) {
-                 let currentMatch = [];
-                for (let r = 0; r < boardSize; r++) {
-                    if (r < boardSize - 2) {
-                        const type1 = board[r][c];
-                        const type2 = board[r + 1][c];
-                        const type3 = board[r + 2][c];
-
-                         if (type1 !== undefined && type1 !== -1 && type1 === type2 && type2 === type3) {
-                            // Encontrado un match de 3 o más
-                            currentMatch.push({ row: r, col: c });
-                            currentMatch.push({ row: r + 1, col: c });
-                            currentMatch.push({ row: r + 2, col: c });
-
-                            // Continuar buscando si hay más piezas en la misma columna
-                            let k = r + 3;
-                            while (k < boardSize && board[k][c] !== -1 && board[k][c] === type1) {
-                                currentMatch.push({ row: k, col: c });
-                                k++;
-                            }
-
-                            // Añadir las piezas del match a la lista global de matches (evitando duplicados)
-                            currentMatch.forEach(matchPiece => {
-                                if (!matches.some(m => m.row === matchPiece.row && m.col === matchPiece.col)) {
-                                    matches.push(matchPiece);
-                                }
-                            });
-
-                            r = k - 1; // Saltar las piezas ya incluidas en este match
-                            currentMatch = []; // Reiniciar para el siguiente match
-                        }
+                for (let r = 0; r < boardSize - 2; r++) {
+                    const pieceType = board[r][c];
+                    if (pieceType && board[r + 1][c] === pieceType && board[r + 2][c] === pieceType) {
+                         // Se encontró una coincidencia vertical de 3 o más
+                         let matchLength = 0;
+                         let currentR = r;
+                         while (currentR < boardSize && board[currentR][c] === pieceType) {
+                             const pieceId = `${currentR}-${c}`;
+                             if (!visited.has(pieceId)) {
+                                 matches.push({ row: currentR, col: c });
+                                 visited.add(pieceId);
+                             }
+                             currentR++;
+                             matchLength++;
+                         }
+                         r += matchLength - 1; // Saltar piezas ya verificadas en esta columna
                     }
                 }
             }
 
-            return matches; // Devuelve la lista de todas las piezas que forman matches
+            return matches;
         }
 
-        // Elimina las piezas que forman matches y las marca visualmente
-        function removeMatches(matches) {
-            // Marcar visualmente las piezas a eliminar y establecer su tipo a -1 (vacío)
-            matches.forEach(matchPiece => {
-                const pieceElement = getPieceElement(matchPiece.row, matchPiece.col);
-                if (pieceElement) {
-                    pieceElement.classList.add('match'); // Añade clase para animación/desvanecimiento
-                }
-                board[matchPiece.row][matchPiece.col] = -1; // -1 representa una celda vacía
-            });
+        // Función para manejar las coincidencias encontradas (eliminar, puntuar, caer, rellenar)
+        async function handleMatches() {
+            let matches = findMatches();
 
-            // Esperar a que termine la animación de desvanecimiento antes de rellenar
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    resolve();
-                }, animationDuration + 50); // Un poco más que la duración de la transición
-            });
+            while (matches.length > 0) {
+                // Añadir puntuación basada en el número de piezas coincidentes
+                score += matches.length * 10; // 10 puntos por pieza
+                updateScoreDisplay();
+
+                // Aplicar animación de "explosión" y luego eliminar
+                matches.forEach(match => {
+                    const pieceElement = gameBoard.querySelector(`[data-row='${match.row}'][data-col='${match.col}']`);
+                    if (pieceElement) {
+                        pieceElement.classList.add('exploding'); // Añadir clase para la animación
+                        // Eliminar el elemento después de que la animación termine
+                        pieceElement.addEventListener('animationend', () => {
+                            pieceElement.remove();
+                        }, { once: true }); // Eliminar el listener después de una ejecución
+                    }
+                    board[match.row][match.col] = null; // Marcar como vacío en el array
+                });
+
+                // Esperar a que la animación de eliminación termine (debe coincidir con la duración de la animación CSS)
+                await new Promise(resolve => setTimeout(resolve, 400)); // La animación dura 0.4s
+
+                // Hacer caer las piezas para llenar los espacios vacíos
+                dropPieces();
+
+                // Esperar a que las piezas caigan visualmente (se puede añadir animación aquí)
+                 await new Promise(resolve => setTimeout(resolve, 300)); // Ajustar retraso según sea necesario
+
+                // Rellenar los espacios vacíos en la parte superior y animar
+                await refillBoard(); // Esperar a que la animación de rellenado se complete
+
+                // Esperar a que la animación de caída/rellenado se asiente
+                await new Promise(resolve => setTimeout(resolve, 400));
+
+                // Verificar nuevas coincidencias creadas al caer/rellenar
+                matches = findMatches();
+            }
         }
 
-        // Hace caer las piezas y genera nuevas para rellenar el tablero
-        function fillBoard() {
-            // Hacer caer las piezas existentes
+        // Función para hacer caer las piezas para llenar los espacios vacíos
+        function dropPieces() {
             for (let c = 0; c < boardSize; c++) {
                 let emptySpaces = 0;
                 for (let r = boardSize - 1; r >= 0; r--) {
-                    if (board[r][c] === -1) {
+                    if (board[r][c] === null) {
                         emptySpaces++;
                     } else if (emptySpaces > 0) {
-                        // Mover la pieza hacia abajo en la matriz interna
+                        // Mover la pieza hacia abajo en el array del tablero
                         board[r + emptySpaces][c] = board[r][c];
-                        board[r][c] = -1; // La posición original queda vacía
+                        board[r][c] = null;
 
-                        // TODO: Implementar animación visual de caída aquí
-                        // Esto es más complejo, requiere mover los elementos DOM suavemente.
-                        // Por ahora, solo se actualizará la visualización después de rellenar.
+                        // Actualizar el atributo data-row del elemento de la pieza para un posicionamiento correcto
+                        const pieceElement = gameBoard.querySelector(`[data-row='${r}'][data-col='${c}']`);
+                        if (pieceElement) {
+                             pieceElement.dataset.row = r + emptySpaces;
+                             // La función renderBoard se encargará de la actualización visual
+                        }
                     }
                 }
             }
+             // Volver a renderizar el tablero para reflejar las nuevas posiciones de las piezas caídas
+             renderBoard();
+        }
 
-            // Generar nuevas piezas en la parte superior
-            for (let c = 0; c < boardSize; c++) {
-                for (let r = 0; r < boardSize; r++) {
-                    if (board[r][c] === -1) {
-                        // Rellenar el espacio vacío con una nueva pieza aleatoria
-                        const randomPieceType = Math.floor(Math.random() * pieceRepresentations.length);
-                        board[r][c] = randomPieceType;
+        // Función para rellenar los espacios vacíos en la parte superior del tablero con animación de cascada
+        async function refillBoard() {
+             const newPieces = [];
+             for (let r = 0; r < boardSize; r++) {
+                 for (let c = 0; c < boardSize; c++) {
+                     if (board[r][c] === null) {
+                         // Crear un nuevo tipo de pieza aleatorio
+                         const randomType = pieceTypes[Math.floor(Math.random() * pieceTypes.length)];
+                         board[r][c] = randomType;
+                         // Crear el nuevo elemento de pieza
+                         const pieceElement = createPiece(r, c, randomType);
 
-                        // TODO: Implementar animación visual de aparición aquí
+                         // Añadir la clase 'falling' para iniciar la animación
+                         pieceElement.classList.add('falling');
+
+                         // Establecer la posición final antes de añadir al DOM
+                         pieceElement.dataset.row = r; // Establecer la fila correcta
+                         pieceElement.dataset.col = c; // Establecer la columna correcta
+
+                         // Necesario insertar la nueva pieza en la posición correcta en el DOM
+                         // Encontrar la pieza que debería estar después de esta nueva pieza en el orden de la cuadrícula
+                         let nextElement = null;
+                         if (c < boardSize - 1) {
+                             nextElement = gameBoard.querySelector(`[data-row='${r}'][data-col='${c + 1}']`);
+                         } else if (r < boardSize - 1) {
+                             nextElement = gameBoard.querySelector(`[data-row='${r + 1}'][data-col='${0}']`);
+                         }
+
+                         if (nextElement) {
+                             gameBoard.insertBefore(pieceElement, nextElement);
+                         } else {
+                             gameBoard.appendChild(pieceElement);
+                         }
+
+                         newPieces.push(pieceElement);
+                     }
+                 }
+             }
+
+             // Activar la animación para las nuevas piezas con un efecto de cascada
+             await new Promise(resolve => {
+                 newPieces.forEach((piece, index) => {
+                     const row = parseInt(piece.dataset.row);
+                     // Calcular el retraso basado en la fila para el efecto de cascada
+                     const delay = row * 50; // 50ms de retraso por fila
+
+                     setTimeout(() => {
+                         piece.classList.remove('falling'); // Eliminar la clase para activar la transición
+                         piece.style.transform = 'translateY(0)'; // Mover a la posición final
+                         piece.style.opacity = '1'; // Desvanecer
+                         if (index === newPieces.length - 1) {
+                             // Resolver la promesa después de que comience la animación de la última pieza
+                             // Añadir un pequeño retraso adicional para asegurar que la animación se complete antes del siguiente paso
+                             setTimeout(resolve, 400 + delay);
+                         }
+                     }, delay);
+                 });
+                 // Si no hay nuevas piezas, resolver inmediatamente
+                 if (newPieces.length === 0) {
+                     resolve();
+                 }
+             });
+
+             // Después de la animación, volver a renderizar para asegurar el orden correcto del DOM y limpiar estilos
+             renderBoard();
+        }
+
+        // Función para volver a renderizar todo el tablero basándose en el estado actual del array del tablero
+        // Esta función se llama después de caídas y rellenados para asegurar que el DOM refleje el array del tablero
+        function renderBoard() {
+            // Almacenar los datos de la pieza seleccionada actual si la hay
+            const selectedRow = selectedPiece ? parseInt(selectedPiece.dataset.row) : null;
+            const selectedCol = selectedPiece ? parseInt(selectedPiece.dataset.col) : null;
+
+            gameBoard.innerHTML = ''; // Limpiar los elementos DOM actuales
+            const fragment = document.createDocumentFragment(); // Usar fragmento para rendimiento
+
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const pieceType = board[r][c];
+                    if (pieceType !== null) {
+                         const pieceElement = createPiece(r, c, pieceType);
+                         // Volver a aplicar la clase 'selected' si esta era la pieza seleccionada
+                         if (r === selectedRow && c === selectedCol) {
+                             pieceElement.classList.add('selected');
+                             selectedPiece = pieceElement; // Actualizar la referencia de selectedPiece
+                         }
+                         fragment.appendChild(pieceElement);
                     }
                 }
             }
-
-            // Volver a renderizar el tablero completo después de la caída y el relleno
-            renderBoard();
-        }
-
-        // Procesa las combinaciones, las elimina y rellena el tablero, manejando cascadas
-        async function checkAndHandleMatches() {
-            isProcessing = true; // Bloquear clics
-
-            let matchesFound = true;
-            while (matchesFound) {
-                const matches = findMatches(); // Buscar matches
-
-                if (matches.length > 0) {
-                    // Si se encontraron matches, eliminarlos
-                    await removeMatches(matches); // Esperar a que termine la animación de eliminación
-                    fillBoard(); // Rellenar el tablero
-                    // El bucle continuará para buscar nuevas cascadas
-                } else {
-                    matchesFound = false; // No se encontraron más matches, salir del bucle
-                }
-            }
-
-            isProcessing = false; // Desbloquear clics
+            gameBoard.appendChild(fragment); // Añadir todas las piezas a la vez
         }
 
 
-        // Maneja el clic en una pieza
-        async function handlePieceClick(event) {
-            // Ignorar clics si ya estamos procesando combinaciones/caídas
-            if (isProcessing) {
-                return;
-            }
+        // Listener de eventos para el botón de reiniciar
+        restartButton.addEventListener('click', initializeBoard);
 
-            const clickedPieceElement = event.currentTarget; // El div.game-piece
-            const row = parseInt(clickedPieceElement.dataset.row);
-            const col = parseInt(clickedPieceElement.dataset.col);
-
-            console.log(`Clicked piece at: Row ${row}, Col ${col}`);
-
-            // --- Lógica de Selección/Intercambio ---
-            if (!selectedPiece) {
-                // Si no hay pieza seleccionada, selecciona esta
-                selectedPiece = { element: clickedPieceElement, row: row, col: col };
-                clickedPieceElement.style.border = '3px solid yellow'; // Resaltar selección
-            } else {
-                // Si ya hay una pieza seleccionada, intenta intercambiar
-                const piece1 = selectedPiece;
-                const piece2 = { element: clickedPieceElement, row: row, col: col };
-
-                // Limpiar la selección visual de la primera pieza
-                selectedPiece.element.style.border = 'none';
-                selectedPiece = null; // Limpiar la variable de selección
-
-                // Verificar si las piezas son adyacentes
-                if (areAdjacent(piece1, piece2)) {
-                    // Realizar el intercambio
-                    swapPieces(piece1, piece2);
-
-                    // Verificar si el intercambio resultó en alguna combinación
-                    const matches = findMatches();
-
-                    if (matches.length > 0) {
-                        // Si hay matches, procesarlos (eliminar, caer, rellenar, cascadas)
-                        await checkAndHandleMatches();
-                         // TODO: Añadir lógica de puntuación aquí
-                    } else {
-                        // Si no hay matches, deshacer el intercambio (animación opcional)
-                        // Para un juego real, querrías animar el retorno aquí.
-                        // Por ahora, simplemente volvemos a intercambiar en la matriz interna.
-                        swapPieces(piece2, piece1);
-                        console.log("No match, swapping back.");
-                    }
-
-                } else {
-                    // Si no son adyacentes, simplemente deseleccionar la primera pieza
-                    console.log("Pieces are not adjacent.");
-                }
-            }
-        }
-
-
-        // --- Inicio del Juego ---
-        initializeBoard(); // Llama a la función para configurar y mostrar el tablero cuando la página carga
+        // Inicializar el juego cuando la página se carga
+        window.onload = initializeBoard;
 
     </script>
 </body>
