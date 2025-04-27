@@ -282,14 +282,14 @@
         // Sonido de coincidencia (más vibrante)
         const matchSynth = new Tone.PluckSynth().toDestination();
         // Ajustar volumen para que se escuche más
-        matchSynth.volume.value = 6; // +6 dB
+        matchSynth.volume.value = 10; // +6 dB
 
         // Sonido de subir de nivel (celebración) - Usando Tone.Player para cargar un archivo de audio
-         const levelUpPlayer = new Tone.Player("http://www.marcelomagni.com.ar/sound/musfestejo.ogg").toDestination();
+         const levelUpPlayer = new Tone.Player("http://www.marcelomagni.com.ar/sound/musfestejo.mp3").toDestination();
          // Configurar para que no haga loop (por defecto es false, pero lo especificamos por claridad)
          levelUpPlayer.loop = false;
          // Cargar el audio al inicio
-         levelUpPlayer.load("http://www.marcelomagni.com.ar/sound/musfestejo.ogg");
+         levelUpPlayer.load("http://www.marcelomagni.com.ar/sound/musfestejo.mp3");
 
 
          // Sonido para clic en pista
